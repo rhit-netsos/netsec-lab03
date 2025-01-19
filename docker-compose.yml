@@ -1,11 +1,11 @@
 # set the name for the project
-name: template
+name: lab03
 
 services:
   hostA:
     image: netsos/rhit-netsec:latest
-    container_name: hostA
-    hostname: hostA
+    container_name: client
+    hostname: client
     tty: true
     working_dir: /volumes/
     cap_add:
@@ -13,7 +13,7 @@ services:
     volumes:
       - ./volumes:/volumes
     networks:
-      local-net:
+      subnet1:
         ipv4_address: 10.10.0.4
     command: >
       bash -c "
@@ -22,13 +22,17 @@ services:
       echo 'netsec ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers &&
       bash /volumes/check_config.sh &&
       cp /volumes/vimrc /home/netsec/.vimrc &&
+      echo '10.10.1.5 server' | sudo tee -a /etc/hosts > /dev/null &&
+      sudo ip route change default dev eth0 via 10.10.0.10 &&
       tail -f /dev/null
       "
 
-  hostB:
+  # echo "10.10.0.4 client" | sudo tee /etc/hosts &&
+
+  server:
     image: netsos/rhit-netsec:latest
-    container_name: hostB
-    hostname: hostB
+    container_name: server
+    hostname: server
     tty: true
     working_dir: /volumes/
     cap_add:
@@ -36,8 +40,8 @@ services:
     volumes:
       - ./volumes:/volumes
     networks:
-      local-net:
-        ipv4_address: 10.10.0.5
+      subnet2:
+        ipv4_address: 10.10.1.5
     command: >
       bash -c "
       groupadd -g ${GID} netsec_group &&
@@ -45,6 +49,9 @@ services:
       echo 'netsec ALL=(ALL) NOPASSWD:ALL' >> /etc/sudoers &&
       bash /volumes/check_config.sh &&
       cp /volumes/vimrc /home/netsec/.vimrc &&
+      sudo bash /volumes/setup_telnetd.sh &&
+      echo '10.10.0.4 client' | sudo tee -a /etc/hosts > /dev/null &&
+      sudo ip route change default dev eth0 via 10.10.1.10 &&
       tail -f /dev/null
       "
 
@@ -58,9 +65,13 @@ services:
       - ALL
     volumes:
       - ./volumes:/volumes
+    sysctls:
+      - net.ipv4.ip_forward=0
     networks:
-      local-net:
-        ipv4_address: 10.10.0.13
+      subnet1:
+        ipv4_address: 10.10.0.10
+      subnet2:
+        ipv4_address: 10.10.1.10
     command: >
       bash -c "
       groupadd -g ${GID} netsec_group &&
@@ -72,8 +83,13 @@ services:
       "
 
 networks:
-  local-net:
-    name: local-net
+  subnet1:
+    name: subnet1
     ipam:
       config:
         - subnet: 10.10.0.0/24
+  subnet2:
+    name: subnet2
+    ipam:
+      config:
+        - subnet: 10.10.1.0/24
